@@ -1,9 +1,0 @@
-[project]
-name = "calculador-taludes"
-version = "0.1.0"
-description = "Aplicación interactiva para análisis volumétrico de taludes"
-dependencies = [
-    "streamlit>=1.30.0",
-    "plotly>=5.18.0",
-    "numpy>=1.24.0"
-]
