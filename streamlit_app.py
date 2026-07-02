@@ -9,7 +9,7 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Estilos CSS personalizados (Texto forzado a color oscuro para legibilidad)
+# Estilos CSS personalizados para legibilidad y diseño limpio
 st.markdown("""
     <style>
     .block-container { padding-top: 2rem; padding-bottom: 2rem; }
@@ -23,250 +23,245 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("📊 Calculador Geotécnico y Volumétrico de Taludes")
-st.markdown("Herramienta interactiva para el diseño geométrico, conversión de unidades, selección de metodología y análisis de masas.")
+st.markdown("Herramienta avanzada para diseño geométrico por componentes, análisis muti-metodología y escalamiento dimensional.")
 
 # ==========================================
-# BARRA LATERAL: CONFIGURACIÓN Y ENTRADAS
+# BARRA LATERAL: CONFIGURACIÓN Y CONFIG GLOBALES
 # ==========================================
 st.sidebar.header("⚙️ Configuración Global")
 
-# Selección de Metodología (Restaurada)
-metodologia = st.sidebar.selectbox(
-    "Metodología de Análisis:",
-    ["Metodología 1: Porcentaje del Volumen", "Metodología 2: Resta Geométrica (Áreas)"]
-)
-
-# Selección de Unidades de Dimensión y Densidad
 unidades_dim = st.sidebar.selectbox("Unidades de Dimensión (Geometría):", ["Metros (m)", "Centímetros (cm)"])
 unidades_dens = st.sidebar.selectbox("Unidades de Densidad:", ["kg/m³", "g/cm³"])
-
-# Selector de Unidad de Masa para Resultados (Nuevo)
 unidad_masa = st.sidebar.selectbox("Mostrar Masa en:", ["Kilogramos (kg)", "Toneladas (Ton)"])
 
 u_long = "m" if unidades_dim == "Metros (m)" else "cm"
 u_dens = "kg/m³" if unidades_dens == "kg/m³" else "g/cm³"
 u_masa = "kg" if unidad_masa == "Kilogramos (kg)" else "Ton"
 
-# Factores de conversión hacia el Sistema Internacional (m, kg) para cálculo interno
 to_meters = 1.0 if u_long == "m" else 0.01
 to_kg_m3 = 1.0 if u_dens == "kg/m³" else 1000.0
+mass_factor = 1.0 if u_masa == "kg" else 0.001
 
 st.sidebar.markdown("---")
-st.sidebar.header("📐 Geometría Principal")
+st.sidebar.header("📐 Parámetros Generales e Ingreso")
 
-# Inputs principales adaptados a la unidad elegida
-base_mayor_input = st.sidebar.number_input(f"Base Mayor del Trapecio (B) [{u_long}]", min_value=1.0, value=12.0 if u_long == "m" else 1200.0, step=0.5)
-altura_trap_input = st.sidebar.number_input(f"Altura del Trapecio [{u_long}]", min_value=0.5, value=4.0 if u_long == "m" else 400.0, step=0.1)
-pendiente_izq = st.sidebar.number_input("Pendiente Izquierda (H:1V)", min_value=0.1, value=1.2, step=0.1)
-pendiente_der = st.sidebar.number_input("Pendiente Derecha (H:1V)", min_value=0.1, value=1.2, step=0.1)
-altura_rect_input = st.sidebar.number_input(f"Altura del Rectángulo Inferior [{u_long}]", min_value=0.1, value=3.0 if u_long == "m" else 300.0, step=0.1)
-profundidad_input = st.sidebar.number_input(f"Espesor / Profundidad total [{u_long}]", min_value=0.1, value=50.0 if u_long == "m" else 5000.0, step=1.0)
+metodologia_ingreso = st.sidebar.selectbox(
+    "Metodología de Entrada del Trapecio:",
+    ["Metodología A: Por Dimensiones de Bases", "Metodología B: Por Pendientes"]
+)
 
-# Cálculo y validación de Base Menor matemática (Restaurada)
-base_menor_calculada = base_mayor_input - (pendiente_izq * altura_trap_input) - (pendiente_der * altura_trap_input)
+# Variables de control iniciales
+base_mayor_input = st.sidebar.number_input(f"Base Mayor (B) [Usada también para el Rectángulo] [{u_long}]", min_value=1.0, value=12.0 if u_long == "m" else 1200.0, step=0.5)
+altura_trap_input = st.sidebar.number_input(f"Altura del Trapecio (h) [{u_long}]", min_value=0.5, value=4.0 if u_long == "m" else 400.0, step=0.1)
 
-if base_menor_calculada <= 0:
-    st.error(f"❌ Error Geométrico: Las pendientes y la altura superan la Base Mayor. Incrementa B o reduce las pendientes.")
-    st.stop()
+# Procesamiento condicional de inputs según Metodología elegida
+if metodologia_ingreso.startswith("Metodología A"):
+    base_menor_input = st.sidebar.number_input(f"Base Menor del Trapecio (b) [{u_long}]", min_value=0.1, value=4.8 if u_long == "m" else 480.0, step=0.2)
+    lado_pendiente_conocida = st.sidebar.selectbox("Elegir Pendiente a colocar manualmente:", ["Izquierda", "Derecha"])
+    
+    if lado_pendiente_conocida == "Izquierda":
+        pendiente_izq = st.sidebar.number_input("Pendiente Izquierda Conocida (H:1V)", min_value=0.0, value=1.2, step=0.1)
+        # Cálculo de la otra pendiente de forma matemática estricta
+        diferencia_horizontal = base_mayor_input - base_menor_input - (pendiente_izq * altura_trap_input)
+        if diferencia_horizontal < 0 or altura_trap_input <= 0:
+            st.sidebar.error("❌ Error: Geometría imposible. Reduce la pendiente izquierda o aumenta las bases.")
+            st.stop()
+        pendiente_der = diferencia_horizontal / altura_trap_input
+    else:
+        pendiente_der = st.sidebar.number_input("Pendiente Derecha Conocida (H:1V)", min_value=0.0, value=1.2, step=0.1)
+        diferencia_horizontal = base_mayor_input - base_menor_input - (pendiente_der * altura_trap_input)
+        if diferencia_horizontal < 0 or altura_trap_input <= 0:
+            st.sidebar.error("❌ Error: Geometría imposible. Reduce la pendiente derecha o aumenta las bases.")
+            st.stop()
+        pendiente_izq = diferencia_horizontal / altura_trap_input
+    
+    base_menor_calculada = base_menor_input
+
+else: # Metodología B
+    pendiente_izq = st.sidebar.number_input("Pendiente Izquierda (H:1V)", min_value=0.1, value=1.2, step=0.1)
+    pendiente_der = st.sidebar.number_input("Pendiente Derecha (H:1V)", min_value=0.1, value=1.2, step=0.1)
+    # Cálculo automático de Base Menor
+    base_menor_calculada = base_mayor_input - (pendiente_izq * altura_trap_input) - (pendiente_der * altura_trap_input)
+    if base_menor_calculada <= 0:
+        st.sidebar.error("❌ Error Geométrico: Las pendientes y la altura superan la Base Mayor.")
+        st.stop()
 
 st.sidebar.markdown("---")
 st.sidebar.header("🔺 Configuración de la Cuña de Apoyo")
 lado_cuna = st.sidebar.selectbox("Lado de incrustación de la Cuña:", ["Izquierda", "Derecha"])
-
-altura_cuna_input = st.sidebar.number_input(
-    f"Altura de la Cuña (Menor a la del trapecio) [{u_long}]", 
-    min_value=0.0, 
-    max_value=float(altura_trap_input), 
-    value=float(altura_trap_input * 0.4), 
-    step=0.1
-)
-
-# Si es Metodología 1, se requiere el porcentaje de volumen
-porcentaje_vol_cuna = 0.0
-if metodologia.startswith("Metodología 1"):
-    porcentaje_vol_cuna = st.sidebar.number_input("Porcentaje de Volumen de la Cuña respecto al Trapecio (%)", min_value=0.0, max_value=100.0, value=15.0, step=0.5)
+altura_cuna_input = st.sidebar.number_input(f"Altura de la Cuña [{u_long}]", min_value=0.0, max_value=float(altura_trap_input), value=float(altura_trap_input * 0.4), step=0.1)
 
 st.sidebar.markdown("---")
 st.sidebar.header("🪨 Propiedades Geotécnicas")
-densidad_seca_input = st.sidebar.number_input(f"Densidad Seca Global (γd) [{u_dens}]", min_value=1.0, value=1600.0 if u_dens == "kg/m³" else 1.6, step=10.0 if u_dens == "kg/m³" else 0.1)
-humedad_bloque_A = st.sidebar.number_input("Humedad Bloque A (Rectángulo + Cuña) [%]", min_value=0.0, max_value=100.0, value=12.0, step=0.5)
-humedad_bloque_B = st.sidebar.number_input("Humedad Bloque B (Trapecio - Cuña) [%]", min_value=0.0, max_value=100.0, value=8.0, step=0.5)
+densidad_seca_input = st.sidebar.number_input(f"Densidad Seca (γd) [{u_dens}]", min_value=1.0, value=1600.0 if u_dens == "kg/m³" else 1.6, step=10.0 if u_dens == "kg/m³" else 0.1)
+humedad_bloque_A = st.sidebar.number_input("Humedad Bloque A (%)", min_value=0.0, max_value=100.0, value=12.0, step=0.5)
+humedad_bloque_B = st.sidebar.number_input("Humedad Bloque B (%)", min_value=0.0, max_value=100.0, value=8.0, step=0.5)
+
+st.sidebar.markdown("---")
+st.sidebar.header("⚖️ Factor de Escalamiento")
+factor_escala = st.sidebar.number_input("Factor de Multiplicación de Altura Trapecio (X veces):", min_value=0.1, value=2.0, step=0.5)
 
 # ==========================================
-# PROCESAMIENTO Y CÁLCULOS (S.I. INTERNO)
+# DEFINICIÓN DE PESTAÑAS PRINCIPALES
 # ==========================================
-B = base_mayor_input * to_meters
-h_trap = altura_trap_input * to_meters
-h_rect = altura_rect_input * to_meters
-L = depth = profundidad_input * to_meters
-h_cuna = altura_cuna_input * to_meters
-γ_d = densidad_seca_input * to_kg_m3
-b = base_menor_calculada * to_meters
+tab_original, tab_escalado = st.tabs(["📐 Caso Original", f"🚀 Caso Escalado ({factor_escala}x)"])
 
-# Geometría de la cuña isósceles respecto a la horizontal acoplada a la pendiente exterior
-m_elegida = pendiente_izq if lado_cuna == "Izquierda" else pendiente_der
-dx_cuna = m_elegida * h_cuna
-b_cuna = 2 * dx_cuna  # Base total de la cuña isósceles
-
-# Áreas del modelo original (m²)
-area_rectangulo_total = B * h_rect
-area_trapecio_total = ((B + b) / 2) * h_trap
-
-# Definición de áreas y volúmenes según la metodología seleccionada
-if metodologia.startswith("Metodología 1"):
-    # Metodología 1: Cuña definida como fracción del volumen/área total del trapecio
-    area_cuna = area_trapecio_total * (porcentaje_vol_cuna / 100.0)
-    area_bloque_A = area_rectangulo_total + area_cuna
-    area_bloque_B = area_trapecio_total - area_cuna
-else:
-    # Metodología 2: Resta geométrica real de la cuña isósceles horizontal incrustada
+# ------------------------------------------
+# LÓGICA DE PROCESAMIENTO COMÚN (FUNCIÓN)
+# ------------------------------------------
+def calcular_y_graficar(B_in, h_trap_in, p_izq, p_der, h_rect_in, L_in, h_cuna_in, titulo_contexto):
+    # Procesar en Sistema Internacional
+    B = B_in * to_meters
+    h_trap = h_trap_in * to_meters
+    h_rect = h_rect_in * to_meters
+    L = L_in * to_meters
+    h_cuna = h_cuna_in * to_meters
+    γ_d = densidad_seca_input * to_kg_m3
+    
+    b = B - (p_izq * h_trap) - (p_der * h_trap)
+    m_elegida = p_izq if lado_cuna == "Izquierda" else p_der
+    
+    # Cuña Isósceles Horizontal acoplada a la pendiente
+    dx_cuna = m_elegida * h_cuna
+    b_cuna = 2 * dx_cuna
+    
+    # Cálculos de Áreas (m²)
+    area_rectangulo_total = B * h_rect
+    area_trapecio_total = ((B + b) / 2) * h_trap
     area_cuna = 0.5 * b_cuna * h_cuna
+    
     area_bloque_A = area_rectangulo_total + area_cuna
     area_bloque_B = area_trapecio_total - area_cuna
-
-# Volúmenes finales (m³)
-vol_bloque_A = area_bloque_A * L
-vol_bloque_B = area_bloque_B * L
-vol_total = vol_bloque_A + vol_bloque_B
-
-# Densidades Húmedas (kg/m³)
-γ_h_A = γ_d * (1 + (humedad_bloque_A / 100.0))
-γ_h_B = γ_d * (1 + (humedad_bloque_B / 100.0))
-
-# Masas Totales Húmedas (Cálculo base en kg)
-masa_A_kg = vol_bloque_A * γ_h_A
-masa_B_kg = vol_bloque_B * γ_h_B
-masa_total_kg = masa_A_kg + masa_B_kg
-
-# Conversión para visualización según preferencia del usuario
-mass_factor = 1.0 if u_masa == "kg" else 0.001
-display_masa_A = masa_A_kg * mass_factor
-display_masa_B = masa_B_kg * mass_factor
-display_masa_total = masa_total_kg * mass_factor
-
-# Ajuste visual de volúmenes y áreas
-v_factor = 1.0 if u_long == "m" else 1e6
-u_vol = "m³" if u_long == "m" else "cm³"
-u_area = "m²" if u_long == "m" else "cm²"
-
-# Mensaje de información en pantalla
-st.info(f"💡 Analizando mediante **{metodologia}**. Unidades de salida: **{u_long}** / **{u_area}** / **{u_vol}** / **{u_masa}**.")
-
-# ==========================================
-# RENDERIZADO DE MÉTRICAS / RESULTADOS
-# ==========================================
-st.subheader("📋 Resultados del Análisis Geotécnico - Volumétrico")
-
-col1, col2, col3 = st.columns(3)
-with col1:
-    st.markdown(f"""<div class='stMetric'>
-    <b>Bloque A (Rectángulo + Cuña)</b>
-    <p>Área: {area_bloque_A / (to_meters**2):,.2f} {u_area}</p>
-    <p>Volumen: {vol_bloque_A * v_factor:,.2f} {u_vol}</p>
-    <p>Masa Húmeda: {display_masa_A:,.3f} {u_masa}</p>
-    </div>""", unsafe_allow_html=True)
-
-with col2:
-    st.markdown(f"""<div class='stMetric'>
-    <b>Bloque B (Trapecio - Cuña)</b>
-    <p>Área: {area_bloque_B / (to_meters**2):,.2f} {u_area}</p>
-    <p>Volumen: {vol_bloque_B * v_factor:,.2f} {u_vol}</p>
-    <p>Masa Húmeda: {display_masa_B:,.3f} {u_masa}</p>
-    </div>""", unsafe_allow_html=True)
-
-with col3:
-    st.markdown(f"""<div class='stMetric' style='border-left-color: #27ae60;'>
-    <b>Estructura Combinada Total</b>
-    <p>Área Total: {(area_rectangulo_total + area_trapecio_total) / (to_meters**2):,.2f} {u_area}</p>
-    <p>Volumen Total: {vol_total * v_factor:,.2f} {u_vol}</p>
-    <p>Masa Húmeda Total: {display_masa_total:,.3f} {u_masa}</p>
-    </div>""", unsafe_allow_html=True)
-
-# ==========================================
-# GRÁFICA INTERACTIVA CON PLOTLY
-# ==========================================
-st.subheader("📐 Gráfico de la Sección Transversal (Escala Real 1:1)")
-
-B_v = base_mayor_input
-h_trap_v = altura_trap_input
-h_rect_v = altura_rect_input
-h_cuna_v = altura_cuna_input
-dx_cuna_v = m_elegida * h_cuna_v
-b_cuna_v = 2 * dx_cuna_v
-
-# Coordenadas estáticas del Rectángulo Inferior
-x_rect = [0, B_v, B_v, 0, 0]
-y_rect = [0, 0, h_rect_v, h_rect_v, 0]
-
-# Construcción de las capas visuales respetando la isósceles horizontal
-if lado_cuna == "Izquierda":
-    x_cuna = [0, dx_cuna_v, b_cuna_v, 0]
-    y_cuna = [h_rect_v, h_rect_v + h_cuna_v, h_rect_v, h_rect_v]
     
-    x_trap_remanente = [b_cuna_v, B_v, B_v - (pendiente_der * h_trap_v), pendiente_izq * h_trap_v, dx_cuna_v, b_cuna_v]
-    y_trap_remanente = [h_rect_v, h_rect_v, h_rect_v + h_trap_v, h_rect_v + h_trap_v, h_rect_v + h_cuna_v, h_rect_v]
-else:
-    x_cuna = [B_v, B_v - dx_cuna_v, B_v - b_cuna_v, B_v]
-    y_cuna = [h_rect_v, h_rect_v + h_cuna_v, h_rect_v, h_rect_v]
+    # Volúmenes (m³)
+    vol_bloque_A = area_bloque_A * L
+    vol_bloque_B = area_bloque_B * L
+    vol_total = vol_bloque_A + vol_bloque_B
     
-    x_trap_remanente = [0, B_v - b_cuna_v, B_v - dx_cuna_v, B_v - (pendiente_der * h_trap_v), pendiente_izq * h_trap_v, 0]
-    y_trap_remanente = [h_rect_v, h_rect_v, h_rect_v + h_cuna_v, h_rect_v + h_trap_v, h_rect_v + h_trap_v, h_rect_v]
+    # Masas (kg)
+    γ_h_A = γ_d * (1 + (humedad_bloque_A / 100.0))
+    γ_h_B = γ_d * (1 + (humedad_bloque_B / 100.0))
+    
+    display_masa_A = (vol_bloque_A * γ_h_A) * mass_factor
+    display_masa_B = (vol_bloque_B * γ_h_B) * mass_factor
+    display_masa_total = (display_masa_A + display_masa_B) if u_masa == "kg" else ((vol_bloque_A * γ_h_A + vol_bloque_B * γ_h_B) * mass_factor)
+    
+    v_factor = 1.0 if u_long == "m" else 1e6
+    u_vol = "m³" if u_long == "m" else "cm³"
+    u_area = "m²" if u_long == "m" else "cm²"
+    
+    # Despliegue de tarjetas de respuestas
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        st.markdown(f"""<div class='stMetric'><b>Bloque A (Rectángulo + Cuña)</b>
+        <p>Área: {area_bloque_A / (to_meters**2):,.2f} {u_area}</p>
+        <p>Volumen: {vol_bloque_A * v_factor:,.2f} {u_vol}</p>
+        <p>Masa Húmeda: {display_masa_A:,.3f} {u_masa}</p></div>""", unsafe_allow_html=True)
+    with col2:
+        st.markdown(f"""<div class='stMetric'><b>Bloque B (Trapecio - Cuña)</b>
+        <p>Área: {area_bloque_B / (to_meters**2):,.2f} {u_area}</p>
+        <p>Volumen: {vol_bloque_B * v_factor:,.2f} {u_vol}</p>
+        <p>Masa Húmeda: {display_masa_B:,.3f} {u_masa}</p></div>""", unsafe_allow_html=True)
+    with col3:
+        st.markdown(f"""<div class='stMetric' style='border-left-color: #27ae60;'><b>Estructura Combinada Total</b>
+        <p>Área Total: {(area_rectangulo_total + area_trapecio_total) / (to_meters**2):,.2f} {u_area}</p>
+        <p>Volumen Total: {vol_total * v_factor:,.2f} {u_vol}</p>
+        <p>Masa Húmeda Total: {display_masa_total:,.3f} {u_masa}</p></div>""", unsafe_allow_html=True)
+        
+    # Coordenadas Plotly en Escala Visual (m o cm)
+    x_rect = [0, B_in, B_in, 0, 0]
+    y_rect = [0, 0, h_rect_in, h_rect_in, 0]
+    dx_cuna_v = m_elegida * h_cuna_in
+    b_cuna_v = 2 * dx_cuna_v
+    b_v = B_in - (p_izq * h_trap_in) - (p_der * h_trap_in)
+    
+    if lado_cuna == "Izquierda":
+        x_cuna = [0, dx_cuna_v, b_cuna_v, 0]
+        y_cuna = [h_rect_in, h_rect_in + h_cuna_in, h_rect_in, h_rect_in]
+        x_trap_rem = [b_cuna_v, B_in, B_in - (p_der * h_trap_in), p_izq * h_trap_in, dx_cuna_v, b_cuna_v]
+        y_trap_rem = [h_rect_in, h_rect_in, h_rect_in + h_trap_in, h_rect_in + h_trap_in, h_rect_in + h_cuna_in, h_rect_in]
+    else:
+        x_cuna = [B_in, B_in - dx_cuna_v, B_in - b_cuna_v, B_in]
+        y_cuna = [h_rect_in, h_rect_in + h_cuna_in, h_rect_in, h_rect_in]
+        x_trap_rem = [0, B_in - b_cuna_v, B_in - dx_cuna_v, B_in - (p_der * h_trap_in), p_izq * h_trap_in, 0]
+        y_trap_rem = [h_rect_in, h_rect_in, h_rect_in + h_cuna_in, h_rect_in + h_trap_in, h_rect_in + h_trap_in, h_rect_in]
+        
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(x=x_rect, y=y_rect, fill="toself", fillcolor="rgba(52, 152, 219, 0.35)", line=dict(color="#2980b9", width=2), name="Rectángulo Inferior (Bloque A)", mode="lines"))
+    fig.add_trace(go.Scatter(x=x_trap_rem, y=y_trap_rem, fill="toself", fillcolor="rgba(230, 126, 34, 0.4)", line=dict(color="#d35400", width=2), name="Trapecio Remanente (Bloque B)", mode="lines"))
+    fig.add_trace(go.Scatter(x=x_cuna, y=y_cuna, fill="toself", fillcolor="rgba(46, 204, 113, 0.7)", line=dict(color="#27ae60", width=2.5, dash="dash"), name="Cuña Isósceles Horizontal (Bloque A)", mode="lines"))
+    
+    fig.update_layout(
+        xaxis=dict(title=f"Extensión Horizontal ({u_long})", gridcolor="rgba(128,128,128,0.15)", zeroline=False),
+        yaxis=dict(title=f"Elevación Vertical ({u_long})", gridcolor="rgba(128,128,128,0.15)", scaleanchor="x", scaleratio=1, zeroline=False),
+        template="plotly_white", legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
+        margin=dict(l=40, r=40, t=40, b=50)
+    )
+    st.plotly_chart(fig, use_container_width=True)
+    
+    # Sección de Cotas y Reporte Técnico
+    st.markdown("### 📐 Acotado y Dimensiones Técnicas Detalladas")
+    st.markdown(f"""
+    <div class='dimension-box'>
+        <b>Reporte Métrico Estructural ({titulo_contexto}):</b>
+        <ul>
+            <li><b>Base Mayor General (B):</b> {B_in:,.2f} {u_long}</li>
+            <li><b>Base Menor Calculada (b):</b> {b_v:,.2f} {u_long}</li>
+            <li><b>Altura del Trapecio:</b> {h_trap_in:,.2f} {u_long}</li>
+            <li><b>Pendiente Izquierda resultante/usada:</b> {p_izq:,.2f} H:1V</li>
+            <li><b>Pendiente Derecha resultante/usada:</b> {p_der:,.2f} H:1V</li>
+            <li><b>Altura Rectángulo Inferior:</b> {h_rect_in:,.2f} {u_long}</li>
+            <li><b>Espesor Total (L):</b> {L_in:,.2f} {u_long}</li>
+            <li><b>Geometría de la Cuña:</b> Base: {b_cuna_v:,.2f} {u_long} | Altura: {h_cuna_in:,.2f} {u_long} | Ángulos basales simétricos a la horizontal.</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
 
-fig = go.Figure()
+# ------------------------------------------
+# PESTAÑA 1: CASO ORIGINAL
+# ------------------------------------------
+with tab_original:
+    st.subheader("📋 Análisis del Perfil de Talud Original")
+    
+    # Inputs independientes del caso original
+    altura_rect_orig = st.number_input(f"Altura del Rectángulo Inferior (Original) [{u_long}]", min_value=0.1, value=3.0 if u_long == "m" else 300.0, key="h_rect_orig")
+    profundidad_orig = st.number_input(f"Espesor / Profundidad Total (Original) [{u_long}]", min_value=0.1, value=50.0 if u_long == "m" else 5000.0, key="L_orig")
+    
+    calcular_y_graficar(
+        B_in=base_mayor_input,
+        h_trap_in=altura_trap_input,
+        p_izq=pendiente_izq,
+        p_der=pendiente_der,
+        h_rect_in=altura_rect_orig,
+        L_in=profundidad_orig,
+        h_cuna_in=altura_cuna_input,
+        titulo_contexto="Geometría Original"
+    )
 
-# 1. Capa del Rectángulo Inferior
-fig.add_trace(go.Scatter(
-    x=x_rect, y=y_rect, fill="toself",
-    fillcolor="rgba(52, 152, 219, 0.35)", line=dict(color="#2980b9", width=2),
-    name="Rectángulo Inferior (Bloque A)", mode="lines"
-))
-
-# 2. Capa del Trapecio Superior Remanente (Bloque B)
-fig.add_trace(go.Scatter(
-    x=x_trap_remanente, y=y_trap_remanente, fill="toself",
-    fillcolor="rgba(230, 126, 34, 0.4)", line=dict(color="#d35400", width=2),
-    name="Trapecio Remanente (Bloque B)", mode="lines"
-))
-
-# 3. Capa de la Cuña Isósceles Horizontal (Bloque A)
-fig.add_trace(go.Scatter(
-    x=x_cuna, y=y_cuna, fill="toself",
-    fillcolor="rgba(46, 204, 113, 0.7)", line=dict(color="#27ae60", width=2.5, dash="dash"),
-    name="Cuña Isósceles Horizontal (Bloque A)", mode="lines"
-))
-
-# Configuraciones de Aspecto Físico Real 1:1
-fig.update_layout(
-    xaxis=dict(title=f"Extensión Horizontal ({u_long})", gridcolor="rgba(128,128,128,0.15)", zeroline=False),
-    yaxis=dict(title=f"Elevación Vertical ({u_long})", gridcolor="rgba(128,128,128,0.15)", scaleanchor="x", scaleratio=1, zeroline=False),
-    template="plotly_white",
-    legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
-    margin=dict(l=40, r=40, t=40, b=50),
-    hovermode="closest"
-)
-
-st.plotly_chart(fig, use_container_width=True)
-
-# ==========================================
-# APARTADO DE DIMENSIONES DETALLADAS (NUEVO)
-# ==========================================
-st.markdown("### 📐 Acotado y Dimensiones Críticas del Perfil")
-st.markdown(f"""
-<div class='dimension-box'>
-    <b>Reporte Métrico de las Figuras:</b>
-    <ul>
-        <li><b>Base Mayor General (B):</b> {base_mayor_input:,.2f} {u_long}</li>
-        <li><b>Base Menor del Trapecio (b):</b> {base_menor_calculada:,.2f} {u_long} <span style='color: #7f8c8d;'>(Calculada automáticamente)</span></li>
-        <li><b>Altura del Trapecio Superior:</b> {altura_trap_input:,.2f} {u_long}</li>
-        <li><b>Altura del Rectángulo Inferior:</b> {altura_rect_input:,.2f} {u_long}</li>
-        <li><b>Profundidad de Extrusión (L):</b> {profundidad_input:,.2f} {u_long}</li>
-        <li><b>Cuña de Apoyo Involucrada ({lado_cuna}):</b>
-            <ul>
-                <li>Altura asignada: {altura_cuna_input:,.2f} {u_long}</li>
-                <li>Base total del triángulo isósceles: {b_cuna_v:,.2f} {u_long} <span style='color: #7f8c8d;'>(Garantiza ángulos basales simétricos a la horizontal)</span></li>
-                <li>Proyección horizontal por lado (dx): {dx_cuna_v:,.2f} {u_long}</li>
-            </ul>
-        </li>
-    </ul>
-</div>
-""", unsafe_allow_html=True)
+# ------------------------------------------
+# PESTAÑA 2: CASO ESCALADO (X VECES)
+# ------------------------------------------
+with tab_escalado:
+    st.subheader(f"🚀 Escalamiento Geométrico Automático a Proporción del Trapecio ({factor_escala}x)")
+    st.info(f"El trapecio y la cuña se han multiplicado automáticamente por **{factor_escala}**. Modifica el espesor y la altura del rectángulo según tus necesidades exactas:")
+    
+    # Inputs requeridos por el usuario que NO se escalan automáticamente
+    altura_rect_esc = st.number_input(f"Coloca manualmente: Altura del Rectángulo Inferior (Escalado) [{u_long}]", min_value=0.1, value=3.0 if u_long == "m" else 300.0, key="h_rect_esc")
+    profundidad_esc = st.number_input(f"Coloca manualmente: Espesor / Profundidad Total (Escalado) [{u_long}]", min_value=0.1, value=50.0 if u_long == "m" else 5000.0, key="L_esc")
+    
+    # Geometría del Trapecio Escalada por el Factor X
+    base_mayor_escalada = base_mayor_input * factor_escala
+    altura_trap_escalada = altura_trap_input * factor_escala
+    altura_cuna_escalada = altura_cuna_input * factor_escala
+    # Las pendientes se mantienen constantes para conservar la relación angular física real
+    
+    calcular_y_graficar(
+        B_in=base_mayor_escalada,
+        h_trap_in=altura_trap_escalada,
+        p_izq=pendiente_izq,
+        p_der=pendiente_der,
+        h_rect_in=altura_rect_esc,
+        L_in=profundidad_esc,
+        h_cuna_in=altura_cuna_escalada,
+        titulo_contexto=f"Geometría Escalada {factor_escala}x"
+    )
