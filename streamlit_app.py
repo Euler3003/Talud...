@@ -26,7 +26,7 @@ st.title("📊 Calculador Geotécnico y Volumétrico de Taludes")
 st.markdown("Herramienta avanzada para diseño geométrico por componentes, análisis muti-metodología y escalamiento dimensional.")
 
 # ==========================================
-# BARRA LATERAL: CONFIGURACIÓN Y CONFIG GLOBALES
+# BARRA LATERAL: CONFIGURACIÓN GLOBAL Y ENTRADAS
 # ==========================================
 st.sidebar.header("⚙️ Configuración Global")
 
@@ -43,16 +43,18 @@ to_kg_m3 = 1.0 if u_dens == "kg/m³" else 1000.0
 mass_factor = 1.0 if u_masa == "kg" else 0.001
 
 st.sidebar.markdown("---")
-st.sidebar.header("📐 Parámetros Generales e Ingreso")
+st.sidebar.header("📐 Geometría Principal Inicial")
 
 metodologia_ingreso = st.sidebar.selectbox(
     "Metodología de Entrada del Trapecio:",
     ["Metodología A: Por Dimensiones de Bases", "Metodología B: Por Pendientes"]
 )
 
-# Variables de control iniciales
-base_mayor_input = st.sidebar.number_input(f"Base Mayor (B) [Usada también para el Rectángulo] [{u_long}]", min_value=1.0, value=12.0 if u_long == "m" else 1200.0, step=0.5)
+# REINTEGRACIÓN DE VARIABLES INICIALES EN LA BARRA LATERAL (Rectángulo y Espesor)
+base_mayor_input = st.sidebar.number_input(f"Base Mayor (B) [Trapecio y Rectángulo] [{u_long}]", min_value=1.0, value=12.0 if u_long == "m" else 1200.0, step=0.5)
 altura_trap_input = st.sidebar.number_input(f"Altura del Trapecio (h) [{u_long}]", min_value=0.5, value=4.0 if u_long == "m" else 400.0, step=0.1)
+altura_rect_inicial = st.sidebar.number_input(f"Altura del Rectángulo Inferior Inicial [{u_long}]", min_value=0.1, value=3.0 if u_long == "m" else 300.0, step=0.1)
+profundidad_inicial = st.sidebar.number_input(f"Espesor / Profundidad Total Inicial [{u_long}]", min_value=0.1, value=50.0 if u_long == "m" else 5000.0, step=1.0)
 
 # Procesamiento condicional de inputs según Metodología elegida
 if metodologia_ingreso.startswith("Metodología A"):
@@ -61,7 +63,6 @@ if metodologia_ingreso.startswith("Metodología A"):
     
     if lado_pendiente_conocida == "Izquierda":
         pendiente_izq = st.sidebar.number_input("Pendiente Izquierda Conocida (H:1V)", min_value=0.0, value=1.2, step=0.1)
-        # Cálculo de la otra pendiente de forma matemática estricta
         diferencia_horizontal = base_mayor_input - base_menor_input - (pendiente_izq * altura_trap_input)
         if diferencia_horizontal < 0 or altura_trap_input <= 0:
             st.sidebar.error("❌ Error: Geometría imposible. Reduce la pendiente izquierda o aumenta las bases.")
@@ -80,7 +81,6 @@ if metodologia_ingreso.startswith("Metodología A"):
 else: # Metodología B
     pendiente_izq = st.sidebar.number_input("Pendiente Izquierda (H:1V)", min_value=0.1, value=1.2, step=0.1)
     pendiente_der = st.sidebar.number_input("Pendiente Derecha (H:1V)", min_value=0.1, value=1.2, step=0.1)
-    # Cálculo automático de Base Menor
     base_menor_calculada = base_mayor_input - (pendiente_izq * altura_trap_input) - (pendiente_der * altura_trap_input)
     if base_menor_calculada <= 0:
         st.sidebar.error("❌ Error Geométrico: Las pendientes y la altura superan la Base Mayor.")
@@ -110,7 +110,6 @@ tab_original, tab_escalado = st.tabs(["📐 Caso Original", f"🚀 Caso Escalado
 # LÓGICA DE PROCESAMIENTO COMÚN (FUNCIÓN)
 # ------------------------------------------
 def calcular_y_graficar(B_in, h_trap_in, p_izq, p_der, h_rect_in, L_in, h_cuna_in, titulo_contexto):
-    # Procesar en Sistema Internacional
     B = B_in * to_meters
     h_trap = h_trap_in * to_meters
     h_rect = h_rect_in * to_meters
@@ -218,22 +217,18 @@ def calcular_y_graficar(B_in, h_trap_in, p_izq, p_der, h_rect_in, L_in, h_cuna_i
     """, unsafe_allow_html=True)
 
 # ------------------------------------------
-# PESTAÑA 1: CASO ORIGINAL
+# PESTAÑA 1: CASO ORIGINAL (Usa los de la barra lateral directamente)
 # ------------------------------------------
 with tab_original:
     st.subheader("📋 Análisis del Perfil de Talud Original")
-    
-    # Inputs independientes del caso original
-    altura_rect_orig = st.number_input(f"Altura del Rectángulo Inferior (Original) [{u_long}]", min_value=0.1, value=3.0 if u_long == "m" else 300.0, key="h_rect_orig")
-    profundidad_orig = st.number_input(f"Espesor / Profundidad Total (Original) [{u_long}]", min_value=0.1, value=50.0 if u_long == "m" else 5000.0, key="L_orig")
     
     calcular_y_graficar(
         B_in=base_mayor_input,
         h_trap_in=altura_trap_input,
         p_izq=pendiente_izq,
         p_der=pendiente_der,
-        h_rect_in=altura_rect_orig,
-        L_in=profundidad_orig,
+        h_rect_in=altura_rect_inicial,
+        L_in=profundidad_inicial,
         h_cuna_in=altura_cuna_input,
         titulo_contexto="Geometría Original"
     )
@@ -243,17 +238,16 @@ with tab_original:
 # ------------------------------------------
 with tab_escalado:
     st.subheader(f"🚀 Escalamiento Geométrico Automático a Proporción del Trapecio ({factor_escala}x)")
-    st.info(f"El trapecio y la cuña se han multiplicado automáticamente por **{factor_escala}**. Modifica el espesor y la altura del rectángulo según tus necesidades exactas:")
+    st.info(f"El trapecio y la cuña se han multiplicado automáticamente por **{factor_escala}**. Modifica manualmente la nueva altura del rectángulo y el espesor para este caso escalado:")
     
-    # Inputs requeridos por el usuario que NO se escalan automáticamente
-    altura_rect_esc = st.number_input(f"Coloca manualmente: Altura del Rectángulo Inferior (Escalado) [{u_long}]", min_value=0.1, value=3.0 if u_long == "m" else 300.0, key="h_rect_esc")
-    profundidad_esc = st.number_input(f"Coloca manualmente: Espesor / Profundidad Total (Escalado) [{u_long}]", min_value=0.1, value=50.0 if u_long == "m" else 5000.0, key="L_esc")
+    # Inputs requeridos por el usuario que NO se escalan automáticamente (con el valor inicial por defecto)
+    altura_rect_esc = st.number_input(f"Coloca manualmente: Altura del Rectángulo Inferior (Escalado) [{u_long}]", min_value=0.1, value=float(altura_rect_inicial), key="h_rect_esc")
+    profundidad_esc = st.number_input(f"Coloca manualmente: Espesor / Profundidad Total (Escalado) [{u_long}]", min_value=0.1, value=float(profundidad_inicial), key="L_esc")
     
     # Geometría del Trapecio Escalada por el Factor X
     base_mayor_escalada = base_mayor_input * factor_escala
     altura_trap_escalada = altura_trap_input * factor_escala
     altura_cuna_escalada = altura_cuna_input * factor_escala
-    # Las pendientes se mantienen constantes para conservar la relación angular física real
     
     calcular_y_graficar(
         B_in=base_mayor_escalada,
