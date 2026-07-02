@@ -16,7 +16,7 @@ st.markdown("""
     h1, h2, h3 { color: #2c3e50; font-weight: 700; }
     .stMetric { background-color: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 4px solid #2980b9; }
     </style>
-""", unsafe_html=True)
+""", unsafe_allow_html=True)
 
 st.title("📊 Calculador Geotécnico y Volumétrico de Taludes")
 st.markdown("Herramienta interactiva para el diseño geométrico, conversión de unidades y análisis de masas con cuña de apoyo incrustada.")
