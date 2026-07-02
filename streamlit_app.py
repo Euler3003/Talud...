@@ -21,7 +21,7 @@ st.markdown("""
 """, unsafe_allow_html=True)
 
 st.title("📊 Calculador Geotécnico y Volumétrico de Taludes")
-st.markdown("Herramienta interactiva para el diseño geométrico, conversión de unidades y análisis de masas con cuña de apoyo **isósceles** incrustada.")
+st.markdown("Herramienta interactiva para el diseño geométrico, conversión de unidades y análisis de masas con cuña de apoyo isósceles respecto a la horizontal.")
 
 # ==========================================
 # BARRA LATERAL: CONFIGURACIÓN Y ENTRADAS
@@ -58,15 +58,15 @@ if base_menor_m <= 0:
     st.stop()
 
 st.sidebar.markdown("---")
-st.sidebar.header("🔺 Configuración de la Cuña de Apoyo (Isósceles)")
+st.sidebar.header("🔺 Configuración de la Cuña de Apoyo")
 lado_cuna = st.sidebar.selectbox("Lado de incrustación de la Cuña:", ["Izquierda", "Derecha"])
 
-# Definición geométrica de la cuña isósceles
-base_cuna_input = st.sidebar.number_input(f"Base de la Cuña Isósceles [{u_long}]", min_value=0.0, value=2.0 if u_long == "m" else 200.0, step=0.1)
+# La altura define automáticamente la extensión horizontal para cumplir la isósceles horizontal
 altura_cuna_input = st.sidebar.number_input(
-    f"Altura de la Cuña [{u_long}]", 
+    f"Altura de la Cuña (Menor a la del trapecio) [{u_long}]", 
     min_value=0.0, 
-    value=1.5 if u_long == "m" else 150.0, 
+    max_value=float(altura_trap_input), 
+    value=float(altura_trap_input * 0.4), 
     step=0.1
 )
 
@@ -83,22 +83,27 @@ B = base_mayor_input * to_meters
 h_trap = altura_trap_input * to_meters
 h_rect = altura_rect_input * to_meters
 L = profundidad_input * to_meters
-b_cuna = base_cuna_input * to_meters
 h_cuna = altura_cuna_input * to_meters
 γ_d = densidad_seca_input * to_kg_m3
+
+# Pendiente del lado seleccionado
+m_elegida = pendiente_izq if lado_cuna == "Izquierda" else pendiente_der
+
+# Distancia horizontal de un solo lado del triángulo de la cuña
+dx_cuna = m_elegida * h_cuna
+# Base completa de la cuña para cumplir con la simetría horizontal (isósceles)
+b_cuna = 2 * dx_cuna 
 
 # Base menor calculada en metros
 b = B - (pendiente_izq * h_trap) - (pendiente_der * h_trap)
 
-# Áreas individuales (m²) - El área del triángulo isósceles es Base * Altura / 2
+# Áreas individuales (m²)
 area_rectangulo_total = B * h_rect
 area_trapecio_total = ((B + b) / 2) * h_trap
 area_cuna = 0.5 * b_cuna * h_cuna
 
 # División solicitada de bloques (Resta matemática perfecta)
-# Bloque A: Todo el rectángulo inferior + la cuña isósceles
 area_bloque_A = area_rectangulo_total + area_cuna
-# Bloque B: El trapecio superior original - la porción que ocupa la cuña
 area_bloque_B = area_trapecio_total - area_cuna
 
 # Volúmenes (m³)
@@ -124,7 +129,7 @@ u_area = "m²" if u_long == "m" else "cm²"
 st.info(f"💡 Mostrando resultados en **{u_long}** / **{u_area}** / **{u_vol}** según tu selección actual.")
 
 # ==========================================
-# RENDERIZADO DE MÉTRICAS / RESULTADOS (CORREGIDO COLOR)
+# RENDERIZADO DE MÉTRICAS / RESULTADOS 
 # ==========================================
 st.subheader("📋 Resultados del Análisis Geotécnico - Volumétrico")
 
@@ -154,43 +159,36 @@ with col3:
     </div>""", unsafe_allow_html=True)
 
 # ==========================================
-# GRÁFICA INTERACTIVA CON PLOTLY (CUÑA ISÓSCELES CORREGIDA)
+# GRÁFICA INTERACTIVA CON PLOTLY 
 # ==========================================
 st.subheader("📐 Gráfico de la Sección Transversal (Escala Real 1:1)")
 
-# Convertimos las variables numéricas a la escala visual seleccionada para el gráfico (m o cm)
 B_v = base_mayor_input
 h_trap_v = altura_trap_input
 h_rect_v = altura_rect_input
-b_cuna_v = base_cuna_input
 h_cuna_v = altura_cuna_input
+dx_cuna_v = m_elegida * h_cuna_v
+b_cuna_v = 2 * dx_cuna_v
 
 # Coordenadas del Rectángulo Inferior
 x_rect = [0, B_v, B_v, 0, 0]
 y_rect = [0, 0, h_rect_v, h_rect_v, 0]
 
-# Coordenadas y lógicas de la Cuña Isósceles incrustada
-# Se define como isósceles con respecto a un eje vertical central.
+# Coordenadas de la cuña y remanente respetando ángulos de base iguales
 if lado_cuna == "Izquierda":
-    # La cuña inicia en la esquina inferior izquierda del trapecio (0, h_rect_v)
-    # Su centro vertical está en b_cuna_v / 2
-    x_cuna = [0, b_cuna_v / 2, b_cuna_v, 0]
+    # El triángulo de la cuña descansa de forma simétrica horizontal en el inicio del talud
+    x_cuna = [0, dx_cuna_v, b_cuna_v, 0]
     y_cuna = [h_rect_v, h_rect_v + h_cuna_v, h_rect_v, h_rect_v]
     
-    # El trapecio remanente (Bloque B) pierde esta cuña isósceles
-    # La geometría se deforma recortando la base izquierda
-    # Puntos: (b_cuna_v, h_rect_v), (B_v, h_rect_v), corona derecha, corona izquierda, pico de la cuña, base derecha de la cuña
-    x_trap_remanente = [b_cuna_v, B_v, B_v - (pendiente_der * h_trap_v), pendiente_izq * h_trap_v, b_cuna_v/2, b_cuna_v]
+    # El trapecio remanente pierde el segmento recortado por debajo por la cuña
+    x_trap_remanente = [b_cuna_v, B_v, B_v - (pendiente_der * h_trap_v), pendiente_izq * h_trap_v, dx_cuna_v, b_cuna_v]
     y_trap_remanente = [h_rect_v, h_rect_v, h_rect_v + h_trap_v, h_rect_v + h_trap_v, h_rect_v + h_cuna_v, h_rect_v]
 else:
-    # Lado Derecho: La cuña inicia en la esquina inferior derecha del trapecio (B_v, h_rect_v)
-    # Se incrusta hacia la izquierda
-    x_cuna = [B_v, B_v - b_cuna_v / 2, B_v - b_cuna_v, B_v]
+    # Lado Derecho: La cuña descansa simétrica horizontal en el extremo opuesto del talud
+    x_cuna = [B_v, B_v - dx_cuna_v, B_v - b_cuna_v, B_v]
     y_cuna = [h_rect_v, h_rect_v + h_cuna_v, h_rect_v, h_rect_v]
     
-    # El trapecio remanente pierde su base derecha
-    # Puntos: (0, h_rect_v), (B_v - b_cuna_v, h_rect_v), pico de la cuña, corona derecha, corona izquierda, (0, h_rect_v)
-    x_trap_remanente = [0, B_v - b_cuna_v, B_v - b_cuna_v / 2, B_v - (pendiente_der * h_trap_v), pendiente_izq * h_trap_v, 0]
+    x_trap_remanente = [0, B_v - b_cuna_v, B_v - dx_cuna_v, B_v - (pendiente_der * h_trap_v), pendiente_izq * h_trap_v, 0]
     y_trap_remanente = [h_rect_v, h_rect_v, h_rect_v + h_cuna_v, h_rect_v + h_trap_v, h_rect_v + h_trap_v, h_rect_v]
 
 fig = go.Figure()
@@ -209,11 +207,11 @@ fig.add_trace(go.Scatter(
     name="Trapecio Remanente (Bloque B)", mode="lines"
 ))
 
-# 3. Capa de la Cuña Isósceles Incrustada (Bloque A - Parte 2) - Dibujada encima para ver superposición
+# 3. Capa de la Cuña Isósceles Horizontal Incrustada (Bloque A - Parte 2)
 fig.add_trace(go.Scatter(
     x=x_cuna, y=y_cuna, fill="toself",
     fillcolor="rgba(46, 204, 113, 0.7)", line=dict(color="#27ae60", width=2.5, dash="dash"),
-    name="Cuña Isósceles Incrustada (Bloque A)", mode="lines"
+    name="Cuña Isósceles Horizontal (Bloque A)", mode="lines"
 ))
 
 # Anotación para la base del terreno (B)
