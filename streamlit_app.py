@@ -9,12 +9,14 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
-# Estilos CSS personalizados para mejorar el diseño
+# Estilos CSS personalizados (Texto forzado a color oscuro para que sea legible)
 st.markdown("""
     <style>
     .block-container { padding-top: 2rem; padding-bottom: 2rem; }
     h1, h2, h3 { color: #2c3e50; font-weight: 700; }
-    .stMetric { background-color: #f8f9fa; padding: 10px; border-radius: 5px; border-left: 4px solid #2980b9; }
+    .stMetric { background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 5px solid #2980b9; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .stMetric b { color: #2c3e50; font-size: 1.1rem; }
+    .stMetric p { color: #34495e; margin: 4px 0; font-size: 0.95rem; }
     </style>
 """, unsafe_allow_html=True)
 
@@ -87,8 +89,7 @@ h_cuna = altura_cuna_input * to_meters
 # Base menor calculada en metros
 b = B - (pendiente_izq * h_trap) - (pendiente_der * h_trap)
 
-# Geometría de la cuña (Triángulo isósceles acoplado a la pendiente del lado elegido)
-# Al ser incrustado con la misma pendiente: base = pendiente * altura
+# Geometría de la cuña (Misma pendiente que el lado elegido)
 m_elegida = pendiente_izq if lado_cuna == "Izquierda" else pendiente_der
 b_cuna = m_elegida * h_cuna
 
@@ -97,7 +98,7 @@ area_rectangulo_total = B * h_rect
 area_trapecio_total = ((B + b) / 2) * h_trap
 area_cuna = 0.5 * b_cuna * h_cuna
 
-# División solicitada de bloques
+# División solicitada de bloques (Resta matemática perfecta)
 area_bloque_A = area_rectangulo_total + area_cuna
 area_bloque_B = area_trapecio_total - area_cuna
 
@@ -110,7 +111,7 @@ vol_total = vol_bloque_A + vol_bloque_B
 γ_h_A = γ_d * (1 + (humedad_bloque_A / 100.0))
 γ_h_B = γ_d * (1 + (humedad_bloque_B / 100.0))
 
-# Masas Totales Húmedas (kg -> convertidas a Toneladas Métricas para mejor lectura)
+# Masas Totales Húmedas en Toneladas Métricas
 masa_A_ton = (vol_bloque_A * γ_h_A) / 1000.0
 masa_B_ton = (vol_bloque_B * γ_h_B) / 1000.0
 masa_total_ton = masa_A_ton + masa_B_ton
@@ -124,105 +125,108 @@ u_area = "m²" if u_long == "m" else "cm²"
 st.info(f"💡 Mostrando resultados en **{u_long}** / **{u_area}** / **{u_vol}** según tu selección actual.")
 
 # ==========================================
-# RENDERIZADO DE MÉTRICAS / RESULTADOS
+# RENDERIZADO DE MÉTRICAS / RESULTADOS (CORREGIDO COLOR)
 # ==========================================
 st.subheader("📋 Resultados del Análisis Geotécnico - Volumétrico")
 
 col1, col2, col3 = st.columns(3)
 with col1:
     st.markdown(f"""<div class='stMetric'>
-    <b>Bloque A (Rectángulo + Cuña)</b><br>
-    Área: {area_bloque_A / (to_meters**2):,.2f} {u_area}<br>
-    Volumen: {vol_bloque_A * v_factor:,.2f} {u_vol}<br>
-    Masa Húmeda: {masa_A_ton:,.2f} Ton
+    <b>Bloque A (Rectángulo + Cuña)</b>
+    <p>Área: {area_bloque_A / (to_meters**2):,.2f} {u_area}</p>
+    <p>Volumen: {vol_bloque_A * v_factor:,.2f} {u_vol}</p>
+    <p>Masa Húmeda: {masa_A_ton:,.2f} Ton</p>
     </div>""", unsafe_allow_html=True)
 
 with col2:
     st.markdown(f"""<div class='stMetric'>
-    <b>Bloque B (Trapecio - Cuña)</b><br>
-    Área: {area_bloque_B / (to_meters**2):,.2f} {u_area}<br>
-    Volumen: {vol_bloque_B * v_factor:,.2f} {u_vol}<br>
-    Masa Húmeda: {masa_B_ton:,.2f} Ton
+    <b>Bloque B (Trapecio - Cuña)</b>
+    <p>Área: {area_bloque_B / (to_meters**2):,.2f} {u_area}</p>
+    <p>Volumen: {vol_bloque_B * v_factor:,.2f} {u_vol}</p>
+    <p>Masa Húmeda: {masa_B_ton:,.2f} Ton</p>
     </div>""", unsafe_allow_html=True)
 
 with col3:
     st.markdown(f"""<div class='stMetric' style='border-left-color: #27ae60;'>
-    <b>Estructura Combinada Total</b><br>
-    Área Total: {(area_rectangulo_total + area_trapecio_total) / (to_meters**2):,.2f} {u_area}<br>
-    Volumen Total: {vol_total * v_factor:,.2f} {u_vol}<br>
-    Masa Húmeda Total: {masa_total_ton:,.2f} Ton
+    <b>Estructura Combinada Total</b>
+    <p>Área Total: {(area_rectangulo_total + area_trapecio_total) / (to_meters**2):,.2f} {u_area}</p>
+    <p>Volumen Total: {vol_total * v_factor:,.2f} {u_vol}</p>
+    <p>Masa Húmeda Total: {masa_total_ton:,.2f} Ton</p>
     </div>""", unsafe_allow_html=True)
 
 # ==========================================
-# GRÁFICA INTERACTIVA CON PLOTLY
+# GRÁFICA INTERACTIVA CON PLOTLY (COORDENADAS INCRUSTADAS CORREGIDAS)
 # ==========================================
 st.subheader("📐 Gráfico de la Sección Transversal (Escala Real 1:1)")
 
+# Convertimos las variables numéricas a la escala visual seleccionada para el gráfico (m o cm)
+B_v = base_mayor_input
+h_trap_v = altura_trap_input
+h_rect_v = altura_rect_input
+h_cuna_v = altura_cuna_input
+b_cuna_v = m_elegida * h_cuna_v
+
 # Coordenadas del Rectángulo Inferior
-x_rect = [0, B, B, 0, 0]
-y_rect = [0, 0, h_rect, h_rect, 0]
+x_rect = [0, B_v, B_v, 0, 0]
+y_rect = [0, 0, h_rect_v, h_rect_v, 0]
 
-# Coordenadas del Trapecio Base (Sin modificaciones)
-x_trap_base = [0, B, B - (pendiente_der * h_trap), pendiente_izq * h_trap, 0]
-y_trap_base = [h_rect, h_rect, h_rect + h_trap, h_rect + h_trap, h_rect]
-
-# Coordenadas y lógicas de la Cuña de apoyo incrustada e invertida (le resta al trapecio)
+# Coordenadas corregidas hacia adentro
 if lado_cuna == "Izquierda":
-    # Nace en la esquina inferior izquierda del trapecio (0, h_rect)
-    # Sigue la inclinación del talud izquierdo
-    x_cuna = [0, pendiente_izq * h_cuna, 0, 0]
-    y_cuna = [h_rect, h_rect + h_cuna, h_rect + h_cuna, h_rect]
+    # El talud empieza en (0, h_rect_v) y se mueve a la derecha. 
+    # El triángulo inicia en (0, h_rect_v), avanza en X la distancia b_cuna_v y sube en Y la altura h_cuna_v.
+    # El tercer punto baja verticalmente hasta tocar el techo del rectángulo de nuevo.
+    x_cuna = [0, b_cuna_v, b_cuna_v, 0]
+    y_cuna = [h_rect_v, h_rect_v + h_cuna_v, h_rect_v, h_rect_v]
     
-    # El trapecio remanente se deforma recortando esa esquina
-    x_trap_remanente = [pendiente_izq * h_cuna, B, B - (pendiente_der * h_trap), pendiente_izq * h_trap, pendiente_izq * h_cuna]
-    y_trap_remanente = [h_rect + h_cuna, h_rect, h_rect + h_trap, h_rect + h_trap, h_rect + h_cuna]
+    # El trapecio remanente (Bloque B) pierde este triángulo incrustado en su esquina inferior izquierda
+    x_trap_remanente = [b_cuna_v, B_v, B_v - (pendiente_der * h_trap_v), pendiente_izq * h_trap_v, b_cuna_v, b_cuna_v]
+    y_trap_remanente = [h_rect_v, h_rect_v, h_rect_v + h_trap_v, h_rect_v + h_trap_v, h_rect_v + h_cuna_v, h_rect_v]
 else:
-    # Nace en la esquina inferior derecha del trapecio (B, h_rect)
-    # Sigue la inclinación del talud derecho hacia adentro
-    x_cuna = [B, B, B - (pendiente_der * h_cuna), B]
-    y_cuna = [h_rect, h_rect + h_cuna, h_rect + h_cuna, h_rect]
+    # Lado Derecho: El talud termina en (B_v, h_rect_v) y se mueve hacia adentro (izquierda)
+    x_cuna = [B_v, B_v - b_cuna_v, B_v - b_cuna_v, B_v]
+    y_cuna = [h_rect_v, h_rect_v + h_cuna_v, h_rect_v, h_rect_v]
     
-    # El trapecio remanente se deforma recortando esa esquina derecha
-    x_trap_remanente = [0, B - (pendiente_der * h_cuna), B - (pendiente_der * h_trap), pendiente_izq * h_trap, 0]
-    y_trap_remanente = [h_rect, h_rect + h_cuna, h_rect + h_trap, h_rect + h_trap, h_rect]
+    # El trapecio remanente pierde su esquina inferior derecha
+    x_trap_remanente = [0, B_v - b_cuna_v, B_v - b_cuna_v, B_v - (pendiente_der * h_trap_v), pendiente_izq * h_trap_v, 0]
+    y_trap_remanente = [h_rect_v, h_rect_v, h_rect_v + h_cuna_v, h_rect_v + h_trap_v, h_rect_v + h_trap_v, h_rect_v]
 
 fig = go.Figure()
 
 # 1. Capa del Rectángulo Inferior (Bloque A - Parte 1)
 fig.add_trace(go.Scatter(
     x=x_rect, y=y_rect, fill="toself",
-    fillcolor="rgba(52, 152, 219, 0.4)", line=dict(color="#2980b9", width=2.5),
-    name="Rectángulo Inferior (Parte de Bloque A)", mode="lines"
+    fillcolor="rgba(52, 152, 219, 0.35)", line=dict(color="#2980b9", width=2),
+    name="Rectángulo Inferior (Bloque A)", mode="lines"
 ))
 
-# 2. Capa de la Cuña de Apoyo Incrustada (Bloque A - Parte 2)
-fig.add_trace(go.Scatter(
-    x=x_cuna, y=y_cuna, fill="toself",
-    fillcolor="rgba(46, 204, 113, 0.6)", line=dict(color="#27ae60", width=3, dash="dash"),
-    name="Cuña de Apoyo (Parte de Bloque A)", mode="lines"
-))
-
-# 3. Capa del Trapecio Remanente Reducido (Bloque B)
+# 2. Capa del Trapecio Remanente Reducido (Bloque B)
 fig.add_trace(go.Scatter(
     x=x_trap_remanente, y=y_trap_remanente, fill="toself",
-    fillcolor="rgba(230, 126, 34, 0.4)", line=dict(color="#d35400", width=2.5),
+    fillcolor="rgba(230, 126, 34, 0.4)", line=dict(color="#d35400", width=2),
     name="Trapecio Remanente (Bloque B)", mode="lines"
+))
+
+# 3. Capa de la Cuña de Apoyo Incrustada (Bloque A - Parte 2) - Dibujada encima para ver la superposición
+fig.add_trace(go.Scatter(
+    x=x_cuna, y=y_cuna, fill="toself",
+    fillcolor="rgba(46, 204, 113, 0.7)", line=dict(color="#27ae60", width=2.5, dash="dash"),
+    name="Cuña de Apoyo Incrustada (Bloque A)", mode="lines"
 ))
 
 # Anotación para la base del terreno (B)
 fig.add_annotation(
-    x=B/2, y=-0.05 * (h_rect + h_trap),
+    x=B_v/2, y=-0.06 * (h_rect_v + h_trap_v),
     text=f"<b>B = {base_mayor_input:,.2f} {u_long}</b>",
     showarrow=False, font=dict(size=12, color="#2980b9")
 )
 
-# Configuraciones del Layout para forzar Relación de Aspecto Física real 1:1 (scaleanchor)
+# Configuraciones del Layout para forzar Relación de Aspecto Física real 1:1
 fig.update_layout(
-    xaxis=dict(title=f"Extensión Horizontal ({u_long})", gridcolor="#f0f0f0", zeroline=False),
-    yaxis=dict(title=f"Elevación Vertical ({u_long})", gridcolor="#f0f0f0", scaleanchor="x", scaleratio=1, zeroline=False),
+    xaxis=dict(title=f"Extensión Horizontal ({u_long})", gridcolor="rgba(128,128,128,0.15)", zeroline=False),
+    yaxis=dict(title=f"Elevación Vertical ({u_long})", gridcolor="rgba(128,128,128,0.15)", scaleanchor="x", scaleratio=1, zeroline=False),
     template="plotly_white",
     legend=dict(orientation="h", yanchor="bottom", y=1.02, xanchor="center", x=0.5),
-    margin=dict(l=40, r=40, t=40, b=40),
+    margin=dict(l=40, r=40, t=40, b=50),
     hovermode="closest"
 )
 
