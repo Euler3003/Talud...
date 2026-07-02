@@ -37,7 +37,7 @@ u_dens = "kg/m³" if unidades_dens == "kg/m³" else "g/cm³"
 to_meters = 1.0 if u_long == "m" else 0.01
 to_kg_m3 = 1.0 if u_dens == "kg/m³" else 1000.0
 
-st.sidebar.separator()
+st.sidebar.markdown("---")
 st.sidebar.header("📐 Geometría Principal")
 
 # Inputs principales adaptados a la unidad elegida
@@ -55,7 +55,7 @@ if base_menor_m <= 0:
     st.error(f"❌ Error Geométrico: Las pendientes y la altura superan la Base Mayor. Incrementa B o reduce las pendientes.")
     st.stop()
 
-st.sidebar.separator()
+st.sidebar.markdown("---")
 st.sidebar.header("🔺 Configuración de la Cuña de Apoyo")
 lado_cuna = st.sidebar.selectbox("Lado de incrustación de la Cuña:", ["Izquierda", "Derecha"])
 
@@ -68,7 +68,7 @@ altura_cuna_input = st.sidebar.number_input(
     step=0.1
 )
 
-st.sidebar.separator()
+st.sidebar.markdown("---")
 st.sidebar.header("🪨 Propiedades Geotécnicas")
 densidad_seca_input = st.sidebar.number_input(f"Densidad Seca Global (γd) [{u_dens}]", min_value=1.0, value=1600.0 if u_dens == "kg/m³" else 1.6, step=10.0 if u_dens == "kg/m³" else 0.1)
 humedad_bloque_A = st.sidebar.number_input("Humedad Bloque A (Rectángulo + Cuña) [%]", min_value=0.0, max_value=100.0, value=12.0, step=0.5)
