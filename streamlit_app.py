@@ -135,7 +135,7 @@ with col1:
     Área: {area_bloque_A / (to_meters**2):,.2f} {u_area}<br>
     Volumen: {vol_bloque_A * v_factor:,.2f} {u_vol}<br>
     Masa Húmeda: {masa_A_ton:,.2f} Ton
-    </div>""", unsafe_html=True)
+    </div>""", unsafe_allow_html=True)
 
 with col2:
     st.markdown(f"""<div class='stMetric'>
@@ -143,7 +143,7 @@ with col2:
     Área: {area_bloque_B / (to_meters**2):,.2f} {u_area}<br>
     Volumen: {vol_bloque_B * v_factor:,.2f} {u_vol}<br>
     Masa Húmeda: {masa_B_ton:,.2f} Ton
-    </div>""", unsafe_html=True)
+    </div>""", unsafe_allow_html=True)
 
 with col3:
     st.markdown(f"""<div class='stMetric' style='border-left-color: #27ae60;'>
@@ -151,7 +151,7 @@ with col3:
     Área Total: {(area_rectangulo_total + area_trapecio_total) / (to_meters**2):,.2f} {u_area}<br>
     Volumen Total: {vol_total * v_factor:,.2f} {u_vol}<br>
     Masa Húmeda Total: {masa_total_ton:,.2f} Ton
-    </div>""", unsafe_html=True)
+    </div>""", unsafe_allow_html=True)
 
 # ==========================================
 # GRÁFICA INTERACTIVA CON PLOTLY
