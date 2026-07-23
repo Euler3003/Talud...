@@ -14,16 +14,17 @@ st.markdown("""
     <style>
     .block-container { padding-top: 2rem; padding-bottom: 2rem; }
     h1, h2, h3 { color: #2c3e50; font-weight: 700; }
-    .stMetric { background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 5px solid #2980b9; box-shadow: 0 2px 4px rgba(0,0,0,0.05); }
+    .stMetric { background-color: #f8f9fa; padding: 15px; border-radius: 8px; border-left: 5px solid #2980b9; box-shadow: 0 2px 4px rgba(0,0,0,0.05); margin-bottom: 10px; }
     .stMetric b { color: #2c3e50; font-size: 1.1rem; }
-    .stMetric p { color: #34495e; margin: 4px 0; font-size: 0.95rem; }
+    .stMetric p { color: #34495e; margin: 3px 0; font-size: 0.92rem; }
     .dimension-box { background-color: #f1f2f6; padding: 15px; border-radius: 5px; border: 1px solid #dcdde1; margin-top: 10px; }
     .dimension-box ul { margin: 0; padding-left: 20px; color: #2f3640; }
+    .water-highlight { color: #2980b9; font-weight: bold; }
     </style>
 """, unsafe_allow_html=True)
 
 st.title("📊 Calculador Geotécnico y Volumétrico de Taludes")
-st.markdown("Herramienta avanzada para diseño geométrico por componentes, análisis muti-metodología y escalamiento dimensional.")
+st.markdown("Herramienta avanzada para diseño geométrico, análisis de humedad de ensayo y requerimiento de agua.")
 
 # ==========================================
 # BARRA LATERAL: CONFIGURACIÓN GLOBAL Y ENTRADAS
@@ -32,7 +33,8 @@ st.sidebar.header("⚙️ Configuración Global")
 
 unidades_dim = st.sidebar.selectbox("Unidades de Dimensión (Geometría):", ["Metros (m)", "Centímetros (cm)"])
 unidades_dens = st.sidebar.selectbox("Unidades de Densidad:", ["kg/m³", "g/cm³"])
-unidad_masa = st.sidebar.selectbox("Mostrar Masa en:", ["Kilogramos (kg)", "Toneladas (Ton)"])
+unidad_masa = st.sidebar.selectbox("Mostrar Masas en:", ["Kilogramos (kg)", "Toneladas (Ton)"])
+unidad_agua = st.sidebar.selectbox("Mostrar Volumen de Agua Adicional en:", ["Litros (L)", "Metros Cúbicos (m³)", "Centímetros Cúbicos (cm³)"])
 
 u_long = "m" if unidades_dim == "Metros (m)" else "cm"
 u_dens = "kg/m³" if unidades_dens == "kg/m³" else "g/cm³"
@@ -50,7 +52,6 @@ metodologia_ingreso = st.sidebar.selectbox(
     ["Metodología A: Por Dimensiones de Bases", "Metodología B: Por Pendientes"]
 )
 
-# REINTEGRACIÓN DE VARIABLES INICIALES EN LA BARRA LATERAL (Rectángulo y Espesor)
 base_mayor_input = st.sidebar.number_input(f"Base Mayor (B) [Trapecio y Rectángulo] [{u_long}]", min_value=1.0, value=12.0 if u_long == "m" else 1200.0, step=0.5)
 altura_trap_input = st.sidebar.number_input(f"Altura del Trapecio (h) [{u_long}]", min_value=0.5, value=4.0 if u_long == "m" else 400.0, step=0.1)
 altura_rect_inicial = st.sidebar.number_input(f"Altura del Rectángulo Inferior Inicial [{u_long}]", min_value=0.1, value=3.0 if u_long == "m" else 300.0, step=0.1)
@@ -92,10 +93,14 @@ lado_cuna = st.sidebar.selectbox("Lado de incrustación de la Cuña:", ["Izquier
 altura_cuna_input = st.sidebar.number_input(f"Altura de la Cuña [{u_long}]", min_value=0.0, max_value=float(altura_trap_input), value=float(altura_trap_input * 0.4), step=0.1)
 
 st.sidebar.markdown("---")
-st.sidebar.header("🪨 Propiedades Geotécnicas")
+st.sidebar.header("🪨 Propiedades Geotécnicas y Humedades")
 densidad_seca_input = st.sidebar.number_input(f"Densidad Seca (γd) [{u_dens}]", min_value=1.0, value=1600.0 if u_dens == "kg/m³" else 1.6, step=10.0 if u_dens == "kg/m³" else 0.1)
-humedad_bloque_A = st.sidebar.number_input("Humedad Bloque A (%)", min_value=0.0, max_value=100.0, value=12.0, step=0.5)
-humedad_bloque_B = st.sidebar.number_input("Humedad Bloque B (%)", min_value=0.0, max_value=100.0, value=8.0, step=0.5)
+
+# NUEVA ENTRADA: Humedad Natural del Suelo al momento del ensayo
+humedad_natural = st.sidebar.number_input("Humedad Natural en Ensayo (ω_nat) [%]", min_value=0.0, max_value=100.0, value=4.0, step=0.5)
+
+humedad_bloque_A = st.sidebar.number_input("Humedad Objetivo - Bloque A (%)", min_value=0.0, max_value=100.0, value=12.0, step=0.5)
+humedad_bloque_B = st.sidebar.number_input("Humedad Objetivo - Bloque B (%)", min_value=0.0, max_value=100.0, value=8.0, step=0.5)
 
 st.sidebar.markdown("---")
 st.sidebar.header("⚖️ Factor de Escalamiento")
@@ -107,9 +112,10 @@ factor_escala = st.sidebar.number_input("Factor de Multiplicación de Altura Tra
 tab_original, tab_escalado = st.tabs(["📐 Caso Original", f"🚀 Caso Escalado ({factor_escala}x)"])
 
 # ------------------------------------------
-# LÓGICA DE PROCESAMIENTO COMÚN (FUNCIÓN)
+# LÓGICA DE PROCESAMIENTO GEOTÉCNICO EXACTO
 # ------------------------------------------
 def calcular_y_graficar(B_in, h_trap_in, p_izq, p_der, h_rect_in, L_in, h_cuna_in, titulo_contexto):
+    # Conversión al Sistema Internacional (m, kg)
     B = B_in * to_meters
     h_trap = h_trap_in * to_meters
     h_rect = h_rect_in * to_meters
@@ -120,7 +126,7 @@ def calcular_y_graficar(B_in, h_trap_in, p_izq, p_der, h_rect_in, L_in, h_cuna_i
     b = B - (p_izq * h_trap) - (p_der * h_trap)
     m_elegida = p_izq if lado_cuna == "Izquierda" else p_der
     
-    # Cuña Isósceles Horizontal acoplada a la pendiente
+    # Geometría de la Cuña
     dx_cuna = m_elegida * h_cuna
     b_cuna = 2 * dx_cuna
     
@@ -137,14 +143,47 @@ def calcular_y_graficar(B_in, h_trap_in, p_izq, p_der, h_rect_in, L_in, h_cuna_i
     vol_bloque_B = area_bloque_B * L
     vol_total = vol_bloque_A + vol_bloque_B
     
-    # Masas (kg)
-    γ_h_A = γ_d * (1 + (humedad_bloque_A / 100.0))
-    γ_h_B = γ_d * (1 + (humedad_bloque_B / 100.0))
+    # ====================================================
+    # CÁLCULOS EXACTOS DE MASAS Y VOLUMEN DE AGUA (S.I.)
+    # ====================================================
+    # 1. Masa Seca (Md = Vol * γd) [kg]
+    masa_seca_A_kg = vol_bloque_A * γ_d
+    masa_seca_B_kg = vol_bloque_B * γ_d
+    masa_seca_total_kg = masa_seca_A_kg + masa_seca_B_kg
     
-    display_masa_A = (vol_bloque_A * γ_h_A) * mass_factor
-    display_masa_B = (vol_bloque_B * γ_h_B) * mass_factor
-    display_masa_total = (display_masa_A + display_masa_B) if u_masa == "kg" else ((vol_bloque_A * γ_h_A + vol_bloque_B * γ_h_B) * mass_factor)
+    # 2. Masa a Humedad Natural (M_nat = Md * (1 + ω_nat/100)) [kg]
+    masa_nat_A_kg = masa_seca_A_kg * (1 + (humedad_natural / 100.0))
+    masa_nat_B_kg = masa_seca_B_kg * (1 + (humedad_natural / 100.0))
+    masa_nat_total_kg = masa_nat_A_kg + masa_nat_B_kg
     
+    # 3. Masa Húmeda Objetivo (M_obj = Md * (1 + ω_obj/100)) [kg]
+    masa_obj_A_kg = masa_seca_A_kg * (1 + (humedad_bloque_A / 100.0))
+    masa_obj_B_kg = masa_seca_B_kg * (1 + (humedad_bloque_B / 100.0))
+    masa_obj_total_kg = masa_obj_A_kg + masa_obj_B_kg
+    
+    # 4. Agua adicional a incorporar (ΔMw = M_obj - M_nat) [kg]
+    agua_kg_A = max(0.0, masa_obj_A_kg - masa_nat_A_kg)
+    agua_kg_B = max(0.0, masa_obj_B_kg - masa_nat_B_kg)
+    agua_kg_total = agua_kg_A + agua_kg_B
+    
+    # Conversión de Volumen de Agua Requerido según la preferencia elegida
+    if unidad_agua == "Litros (L)":
+        vol_agua_A = agua_kg_A  # 1 kg agua ≈ 1 Litro
+        vol_agua_B = agua_kg_B
+        vol_agua_total = agua_kg_total
+        u_ag = "L"
+    elif unidad_agua == "Metros Cúbicos (m³)":
+        vol_agua_A = agua_kg_A / 1000.0
+        vol_agua_B = agua_kg_B / 1000.0
+        vol_agua_total = agua_kg_total / 1000.0
+        u_ag = "m³"
+    else: # cm³
+        vol_agua_A = agua_kg_A * 1000.0
+        vol_agua_B = agua_kg_B * 1000.0
+        vol_agua_total = agua_kg_total * 1000.0
+        u_ag = "cm³"
+
+    # Factores de visualización de unidades
     v_factor = 1.0 if u_long == "m" else 1e6
     u_vol = "m³" if u_long == "m" else "cm³"
     u_area = "m²" if u_long == "m" else "cm²"
@@ -153,21 +192,35 @@ def calcular_y_graficar(B_in, h_trap_in, p_izq, p_der, h_rect_in, L_in, h_cuna_i
     col1, col2, col3 = st.columns(3)
     with col1:
         st.markdown(f"""<div class='stMetric'><b>Bloque A (Rectángulo + Cuña)</b>
-        <p>Área: {area_bloque_A / (to_meters**2):,.2f} {u_area}</p>
         <p>Volumen: {vol_bloque_A * v_factor:,.2f} {u_vol}</p>
-        <p>Masa Húmeda: {display_masa_A:,.3f} {u_masa}</p></div>""", unsafe_allow_html=True)
+        <hr style='margin: 4px 0;'>
+        <p><b>Masa Seca (M_d):</b> {masa_seca_A_kg * mass_factor:,.3f} {u_masa}</p>
+        <p><b>Masa a Humedad Nat ({humedad_natural}%):</b> {masa_nat_A_kg * mass_factor:,.3f} {u_masa}</p>
+        <p><b>Masa Húmeda Obj ({humedad_bloque_A}%):</b> {masa_obj_A_kg * mass_factor:,.3f} {u_masa}</p>
+        <p class='water-highlight'>💧 Agua a incorporar: {vol_agua_A:,.2f} {u_ag}</p>
+        </div>""", unsafe_allow_html=True)
+
     with col2:
         st.markdown(f"""<div class='stMetric'><b>Bloque B (Trapecio - Cuña)</b>
-        <p>Área: {area_bloque_B / (to_meters**2):,.2f} {u_area}</p>
         <p>Volumen: {vol_bloque_B * v_factor:,.2f} {u_vol}</p>
-        <p>Masa Húmeda: {display_masa_B:,.3f} {u_masa}</p></div>""", unsafe_allow_html=True)
+        <hr style='margin: 4px 0;'>
+        <p><b>Masa Seca (M_d):</b> {masa_seca_B_kg * mass_factor:,.3f} {u_masa}</p>
+        <p><b>Masa a Humedad Nat ({humedad_natural}%):</b> {masa_nat_B_kg * mass_factor:,.3f} {u_masa}</p>
+        <p><b>Masa Húmeda Obj ({humedad_bloque_B}%):</b> {masa_obj_B_kg * mass_factor:,.3f} {u_masa}</p>
+        <p class='water-highlight'>💧 Agua a incorporar: {vol_agua_B:,.2f} {u_ag}</p>
+        </div>""", unsafe_allow_html=True)
+
     with col3:
         st.markdown(f"""<div class='stMetric' style='border-left-color: #27ae60;'><b>Estructura Combinada Total</b>
-        <p>Área Total: {(area_rectangulo_total + area_trapecio_total) / (to_meters**2):,.2f} {u_area}</p>
         <p>Volumen Total: {vol_total * v_factor:,.2f} {u_vol}</p>
-        <p>Masa Húmeda Total: {display_masa_total:,.3f} {u_masa}</p></div>""", unsafe_allow_html=True)
+        <hr style='margin: 4px 0;'>
+        <p><b>Masa Seca Total:</b> {masa_seca_total_kg * mass_factor:,.3f} {u_masa}</p>
+        <p><b>Masa a Humedad Nat Total:</b> {masa_nat_total_kg * mass_factor:,.3f} {u_masa}</p>
+        <p><b>Masa Húmeda Objetivo Total:</b> {masa_obj_total_kg * mass_factor:,.3f} {u_masa}</p>
+        <p class='water-highlight'>💧 Agua Total a incorporar: {vol_agua_total:,.2f} {u_ag}</p>
+        </div>""", unsafe_allow_html=True)
         
-    # Coordenadas Plotly en Escala Visual (m o cm)
+    # Coordenadas Plotly en Escala Visual
     x_rect = [0, B_in, B_in, 0, 0]
     y_rect = [0, 0, h_rect_in, h_rect_in, 0]
     dx_cuna_v = m_elegida * h_cuna_in
@@ -198,30 +251,27 @@ def calcular_y_graficar(B_in, h_trap_in, p_izq, p_der, h_rect_in, L_in, h_cuna_i
     )
     st.plotly_chart(fig, use_container_width=True)
     
-    # Sección de Cotas y Reporte Técnico
-    st.markdown("### 📐 Acotado y Dimensiones Técnicas Detalladas")
+    # Reporte de Cotas y Parámetros
+    st.markdown("### 📐 Reporte de Geometría y Humedad de Ensayo")
     st.markdown(f"""
     <div class='dimension-box'>
-        <b>Reporte Métrico Estructural ({titulo_contexto}):</b>
+        <b>Resumen del Análisis ({titulo_contexto}):</b>
         <ul>
-            <li><b>Base Mayor General (B):</b> {B_in:,.2f} {u_long}</li>
-            <li><b>Base Menor Calculada (b):</b> {b_v:,.2f} {u_long}</li>
-            <li><b>Altura del Trapecio:</b> {h_trap_in:,.2f} {u_long}</li>
-            <li><b>Pendiente Izquierda resultante/usada:</b> {p_izq:,.2f} H:1V</li>
-            <li><b>Pendiente Derecha resultante/usada:</b> {p_der:,.2f} H:1V</li>
-            <li><b>Altura Rectángulo Inferior:</b> {h_rect_in:,.2f} {u_long}</li>
-            <li><b>Espesor Total (L):</b> {L_in:,.2f} {u_long}</li>
-            <li><b>Geometría de la Cuña:</b> Base: {b_cuna_v:,.2f} {u_long} | Altura: {h_cuna_in:,.2f} {u_long} | Ángulos basales simétricos a la horizontal.</li>
+            <li><b>Base Mayor General (B):</b> {B_in:,.2f} {u_long} | <b>Base Menor Calculada (b):</b> {b_v:,.2f} {u_long}</li>
+            <li><b>Altura del Trapecio:</b> {h_trap_in:,.2f} {u_long} | <b>Altura Rectángulo Inferior:</b> {h_rect_in:,.2f} {u_long}</li>
+            <li><b>Pendientes:</b> Izquierda: {p_izq:,.2f} H:1V | Derecha: {p_der:,.2f} H:1V</li>
+            <li><b>Cuña ({lado_cuna}):</b> Base: {b_cuna_v:,.2f} {u_long} | Altura: {h_cuna_in:,.2f} {u_long}</li>
+            <li><b>Parámetros de Humedad Usados:</b> Humedad Natural al Ensayo ($\omega_{{nat}}$) = {humedad_natural}% | Objetivo A = {humedad_bloque_A}% | Objetivo B = {humedad_bloque_B}%</li>
+            <li><b>Volumen Total de Agua a Adicionar para Acondicionar el Suelo:</b> <span style='color: #2980b9; font-weight: bold;'>{vol_agua_total:,.2f} {u_ag}</span></li>
         </ul>
     </div>
     """, unsafe_allow_html=True)
 
 # ------------------------------------------
-# PESTAÑA 1: CASO ORIGINAL (Usa los de la barra lateral directamente)
+# PESTAÑA 1: CASO ORIGINAL
 # ------------------------------------------
 with tab_original:
     st.subheader("📋 Análisis del Perfil de Talud Original")
-    
     calcular_y_graficar(
         B_in=base_mayor_input,
         h_trap_in=altura_trap_input,
@@ -237,14 +287,12 @@ with tab_original:
 # PESTAÑA 2: CASO ESCALADO (X VECES)
 # ------------------------------------------
 with tab_escalado:
-    st.subheader(f"🚀 Escalamiento Geométrico Automático a Proporción del Trapecio ({factor_escala}x)")
-    st.info(f"El trapecio y la cuña se han multiplicado automáticamente por **{factor_escala}**. Modifica manualmente la nueva altura del rectángulo y el espesor para este caso escalado:")
+    st.subheader(f"🚀 Escalamiento Geométrico Automático ({factor_escala}x)")
+    st.info(f"El trapecio y la cuña se han multiplicado por **{factor_escala}**. Modifica manualmente la altura del rectángulo y el espesor para este caso:")
     
-    # Inputs requeridos por el usuario que NO se escalan automáticamente (con el valor inicial por defecto)
     altura_rect_esc = st.number_input(f"Coloca manualmente: Altura del Rectángulo Inferior (Escalado) [{u_long}]", min_value=0.1, value=float(altura_rect_inicial), key="h_rect_esc")
     profundidad_esc = st.number_input(f"Coloca manualmente: Espesor / Profundidad Total (Escalado) [{u_long}]", min_value=0.1, value=float(profundidad_inicial), key="L_esc")
     
-    # Geometría del Trapecio Escalada por el Factor X
     base_mayor_escalada = base_mayor_input * factor_escala
     altura_trap_escalada = altura_trap_input * factor_escala
     altura_cuna_escalada = altura_cuna_input * factor_escala
